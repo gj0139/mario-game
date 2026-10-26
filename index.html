@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>马里奥小游戏 - Super Mario Web</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; overflow: hidden; background: #000; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+  }
+  #gameContainer {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: #5c94fc;
+  }
+  #hud {
+    flex-shrink: 0;
+    background: #000;
+    color: #fff;
+    padding: 6px 12px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    z-index: 5;
+  }
+  #hud .label { color: #fbd000; }
+  #canvasWrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    max-width: 100%;
+    max-height: 100%;
+    touch-action: none;
+  }
+  #overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.75);
+    color: #fff;
+    font-size: 22px;
+    text-align: center;
+    z-index: 20;
+    padding: 20px;
+  }
+  #overlay.hidden { display: none; }
+  #overlay h1 { font-size: 36px; margin-bottom: 12px; color: #fbd000; }
+  #overlay p { font-size: 15px; margin: 4px 0; }
+  #overlay button {
+    margin-top: 16px;
+    padding: 12px 28px;
+    font-size: 18px;
+    background: #e52521;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  /* Touch controls */
+  #touchControls {
+    position: absolute;
+    bottom: 12px;
+    left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 16px;
+    z-index: 15;
+    pointer-events: none;
+  }
+  .tbtn {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.25);
+    border: 2px solid rgba(255,255,255,0.5);
+    color: #fff;
+    font-size: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+  .tbtn:active { background: rgba(255,255,255,0.45); }
+  #jumpBtn { width: 80px; height: 80px; font-size: 16px; font-weight: bold; }
+  #fsBtn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 16;
+    padding: 6px 12px;
+    background: rgba(0,0,0,0.5);
+    color: #fff;
+    border: 1px solid #fff;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  #rotateHint {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #000;
+    color: #fff;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 30;
+    font-size: 20px;
+    text-align: center;
+  }
+  #rotateHint.show { display: flex; }
+  @media (orientation: portrait) {
+    #rotateHint { display: flex; }
+  }
+  @media (orientation: landscape) {
+    #rotateHint { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <div id="hud">
+    <div><span class="label">MARIO</span> <span id="score">000000</span></div>
+    <div><span class="label">COINS</span> x<span id="coins">00</span></div>
+    <div><span class="label">WORLD</span> 1-1</div>
+    <div><span class="label">TIME</span> <span id="time">400</span></div>
+    <div><span class="label">LIVES</span> x<span id="lives">3</span></div>
+  </div>
+  <div id="canvasWrap">
+    <canvas id="game" width="800" height="480"></canvas>
+    <button id="fsBtn">全屏</button>
+    <div id="touchControls">
+      <div style="display:flex;gap:8px;">
+        <div class="tbtn" id="leftBtn">◀</div>
+        <div class="tbtn" id="rightBtn">▶</div>
+      </div>
+      <div class="tbtn" id="jumpBtn">跳</div>
+    </div>
+    <div id="overlay">
+      <h1>SUPER MARIO WEB</h1>
+      <p>手机横屏游玩体验更佳</p>
+      <p>方向键/WASD 或触屏按钮移动跳跃</p>
+      <p>踩敌人、吃金币、撞问号方块</p>
+      <p>到达旗杆胜利！</p>
+      <button id="startBtn">开始游戏</button>
+    </div>
+  </div>
+</div>
+<div id="rotateHint">
+  <div style="font-size:48px;margin-bottom:16px;">📱↻</div>
+  <div>请将手机横屏以获得最佳体验</div>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W = canvas.width, H = canvas.height;
+const TILE = 32;
+const GRAVITY = 0.6;
+const JUMP_FORCE = -13;
+const MOVE_SPEED = 4;
+const MAX_FALL = 16;
+
+let state = 'title';
+let score = 0, coins = 0, lives = 3, timeLeft = 400;
+let timeTimer = null;
+let cameraX = 0;
+let keys = {};
+let touchLeft = false, touchRight = false, touchJump = false;
+let player = null;
+let enemies = [];
+let particles = [];
+let level = [];
+let levelWidth = 0;
+
+const T = { EMPTY:0, GROUND:1, BRICK:2, QBLOCK:3, PIPE:4, FLAG:5, COIN:6 };
+
+const LEVEL_MAP = [
+  "                                                                                                                                                                                                                      ",
+  "                                                                                                                                                                                                                      ",
+  "                                                                                                                                                                                                                      ",
+  "                                                                                                                                                                                                                      ",
+  "                                                                                                                                                                                                                      ",
+  "                                                                                                                                                                                                                      ",
+  "                                                                                                                                                                                                                      ",
+  "                                                                                                                                                                                                                      ",
+  "                                                                                                                                                                                                                      ",
+  "                                                                                                                                                                                                                      ",
+  "   ?   ?       ?       ?   ?   ?   ?       ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ",
+  "   #   #       #       #   #   #   #       #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   ",
+  "   #   #       #       #   #   #   #       #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   ",
+  "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
+  "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
+];
+
+function buildLevel() {
+  level = [];
+  const rows = LEVEL_MAP.length;
+  const cols = LEVEL_MAP[0].length;
+  levelWidth = cols * TILE;
+  for (let r = 0; r < rows; r++) {
+    const row = [];
+    for (let c = 0; c < cols; c++) {
+      const ch = LEVEL_MAP[r][c];
+      let t = T.EMPTY;
+      if (ch === 'G') t = T.GROUND;
+      else if (ch === '#') t = T.BRICK;
+      else if (ch === '?') t = T.QBLOCK;
+      else if (ch === 'P') t = T.PIPE;
+      else if (ch === 'F') t = T.FLAG;
+      row.push(t);
+    }
+    level.push(row);
+  }
+  addPipe(30, 10, 3);
+  addPipe(60, 10, 4);
+  addPipe(90, 10, 3);
+  const flagCol = cols - 5;
+  for (let r = 8; r < rows - 2; r++) level[r][flagCol] = T.FLAG;
+  enemies = [];
+  const enemyPositions = [15, 25, 40, 55, 70, 85, 100, 120, 140, 160, 180];
+  enemyPositions.forEach(c => {
+    enemies.push({ x: c*TILE, y: (rows-4)*TILE, vx: -1, vy: 0, w: 28, h: 28, alive: true, type: 'goomba' });
+  });
+}
+
+function addPipe(col, startRow, height) {
+  for (let h = 0; h < height; h++) {
+    for (let c = 0; c < 2; c++) {
+      if (level[startRow - h]) level[startRow - h][col + c] = T.PIPE;
+    }
+  }
+}
+
+function resetPlayer() {
+  player = {
+    x: 64, y: 100, vx: 0, vy: 0,
+    w: 24, h: 32, big: false,
+    onGround: false, facing: 1,
+    invincible: 0, dead: false,
+    animFrame: 0, animTimer: 0
+  };
+}
+
+function initGame() {
+  score = 0; coins = 0; lives = 3; timeLeft = 400;
+  cameraX = 0;
+  particles = [];
+  buildLevel();
+  resetPlayer();
+  updateHUD();
+  if (timeTimer) clearInterval(timeTimer);
+  timeTimer = setInterval(() => {
+    if (state === 'playing') {
+      timeLeft = Math.max(0, timeLeft - 1);
+      document.getElementById('time').textContent = String(timeLeft).padStart(3,'0');
+      if (timeLeft === 0) { playerDie(); }
+    }
+  }, 1000);
+  state = 'playing';
+  document.getElementById('overlay').classList.add('hidden');
+}
+
+function updateHUD() {
+  document.getElementById('score').textContent = String(score).padStart(6,'0');
+  document.getElementById('coins').textContent = String(coins).padStart(2,'0');
+  document.getElementById('lives').textContent = lives;
+}
+
+function tileAt(col, row) {
+  if (row < 0 || row >= level.length) return T.EMPTY;
+  if (col < 0 || col >= level[0].length) return T.EMPTY;
+  return level[row][col];
+}
+
+function isSolid(t) {
+  return t === T.GROUND || t === T.BRICK || t === T.QBLOCK || t === T.PIPE || t === T.FLAG;
+}
+
+function playerDie() {
+  if (player.dead) return;
+  player.dead = true;
+  player.vy = -12;
+  lives--;
+  updateHUD();
+  setTimeout(() => {
+    if (lives <= 0) {
+      state = 'gameOver';
+      showOverlay('GAME OVER', '按 R 或点击重新开始');
+    } else {
+      resetPlayer();
+      cameraX = 0;
+      timeLeft = 400;
+      document.getElementById('time').textContent = '400';
+    }
+  }, 1500);
+}
+
+function showOverlay(title, msg) {
+  const o = document.getElementById('overlay');
+  o.classList.remove('hidden');
+  o.innerHTML = `<h1>${title}</h1><p>${msg}</p><button id="startBtn">${state==='gameOver'?'重新开始':'开始游戏'}</button>`;
+  document.getElementById('startBtn').onclick = () => { if (state==='gameOver'||state==='title'||state==='win') initGame(); };
+}
+
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y, vx: (Math.random()-0.5)*6, vy: (Math.random()-0.5)*6 - 2,
+      life: 30, color, size: 3 + Math.random()*3
+    });
+  }
+}
+
+function updatePlayer() {
+  if (player.dead) {
+    player.vy += GRAVITY;
+    player.y += player.vy;
+    return;
+  }
+  let move = 0;
+  if (keys['ArrowLeft'] || keys['a'] || keys['A'] || touchLeft) move -= 1;
+  if (keys['ArrowRight'] || keys['d'] || keys['D'] || touchRight) move += 1;
+  player.vx = move * MOVE_SPEED;
+  if (move !== 0) player.facing = move;
+
+  const jumpPressed = keys['ArrowUp'] || keys['w'] || keys['W'] || keys[' '] || touchJump;
+  if (jumpPressed && player.onGround) {
+    player.vy = JUMP_FORCE;
+    player.onGround = false;
+    touchJump = false;
+  }
+
+  player.vy = Math.min(player.vy + GRAVITY, MAX_FALL);
+
+  player.x += player.vx;
+  resolveCollisions('x');
+
+  player.y += player.vy;
+  player.onGround = false;
+  resolveCollisions('y');
+
+  if (player.x < 0) player.x = 0;
+  if (player.x > levelWidth - player.w) player.x = levelWidth - player.w;
+
+  if (player.y > H + 100) { playerDie(); }
+
+  const targetCam = player.x - W/3;
+  cameraX += (targetCam - cameraX) * 0.1;
+  cameraX = Math.max(0, Math.min(cameraX, levelWidth - W));
+
+  const pc = Math.floor((player.x + player.w/2) / TILE);
+  const pr = Math.floor((player.y + player.h/2) / TILE);
+  if (tileAt(pc, pr) === T.FLAG) {
+    state = 'win';
+    score += timeLeft * 10;
+    updateHUD();
+    showOverlay('🎉 YOU WIN! 🎉', `得分: ${score}  金币: ${coins}`);
+    if (timeTimer) clearInterval(timeTimer);
+  }
+
+  if (player.invincible > 0) player.invincible--;
+
+  player.animTimer++;
+  if (player.animTimer > 8) { player.animTimer = 0; player.animFrame = (player.animFrame+1)%2; }
+}
+
+function resolveCollisions(axis) {
+  const left = Math.floor(player.x / TILE);
+  const right = Math.floor((player.x + player.w - 1) / TILE);
+  const top = Math.floor(player.y / TILE);
+  const bottom = Math.floor((player.y + player.h - 1) / TILE);
+
+  for (let r = top; r <= bottom; r++) {
+    for (let c = left; c <= right; c++) {
+      const t = tileAt(c, r);
+      if (!isSolid(t)) continue;
+      if (axis === 'x') {
+        if (player.vx > 0) {
+          player.x = c * TILE - player.w;
+        } else if (player.vx < 0) {
+          player.x = (c + 1) * TILE;
+        }
+        player.vx = 0;
+      } else {
+        if (player.vy > 0) {
+          player.y = r * TILE - player.h;
+          player.onGround = true;
+        } else if (player.vy < 0) {
+          player.y = (r + 1) * TILE;
+          if (t === T.QBLOCK) {
+            level[r][c] = T.BRICK;
+            coins++;
+            score += 200;
+            spawnParticles(c*TILE+TILE/2, r*TILE, '#fbd000', 8);
+            updateHUD();
+          } else if (t === T.BRICK) {
+            spawnParticles(c*TILE+TILE/2, r*TILE, '#c84c0c', 6);
+          }
+        }
+        player.vy = 0;
+      }
+    }
+  }
+}
+
+function updateEnemies() {
+  enemies.forEach(e => {
+    if (!e.alive) return;
+    e.vy = Math.min(e.vy + GRAVITY, MAX_FALL);
+    e.x += e.vx;
+    e.y += e.vy;
+
+    const bottom = Math.floor((e.y + e.h) / TILE);
+    const left = Math.floor(e.x / TILE);
+    const right = Math.floor((e.x + e.w - 1) / TILE);
+    let onGround = false;
+    for (let c = left; c <= right; c++) {
+      if (tileAt(c, bottom) !== T.EMPTY && isSolid(tileAt(c, bottom))) {
+        e.y = bottom * TILE - e.h;
+        e.vy = 0;
+        onGround = true;
+      }
+    }
+    const midY = Math.floor((e.y + e.h/2) / TILE);
+    if (e.vx > 0 && isSolid(tileAt(right, midY))) e.vx = -Math.abs(e.vx);
+    if (e.vx < 0 && isSolid(tileAt(left, midY))) e.vx = Math.abs(e.vx);
+
+    if (onGround) {
+      const aheadCol = e.vx > 0 ? right + 1 : left - 1;
+      if (!isSolid(tileAt(aheadCol, bottom))) { e.vx = -e.vx; }
+    }
+
+    if (player.dead || player.invincible > 0) return;
+    if (rectsOverlap(player.x, player.y, player.w, player.h, e.x, e.y, e.w, e.h)) {
+      if (player.vy > 0 && player.y + player.h - e.y < 16) {
+        e.alive = false;
+        player.vy = -8;
+        score += 100;
+        spawnParticles(e.x + e.w/2, e.y + e.h/2, '#8b4513', 10);
+        updateHUD();
+      } else {
+        if (player.big) {
+          player.big = false;
+          player.h = 32;
+          player.y += 16;
+          player.invincible = 60;
+        } else {
+          playerDie();
+        }
+      }
+    }
+  });
+}
+
+function rectsOverlap(x1,y1,w1,h1,x2,y2,w2,h2) {
+  return x1 < x2+w2 && x1+w1 > x2 && y1 < y2+h2 && y1+h1 > y2;
+}
+
+function updateParticles() {
+  particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy; p.vy += 0.3; p.life--;
+  });
+  particles = particles.filter(p => p.life > 0);
+}
+
+function draw() {
+  ctx.fillStyle = '#5c94fc';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  drawCloud(100 - cameraX*0.3, 60);
+  drawCloud(300 - cameraX*0.3, 40);
+  drawCloud(550 - cameraX*0.3, 70);
+  drawCloud(800 - cameraX*0.3, 50);
+
+  ctx.save();
+  ctx.translate(-cameraX, 0);
+
+  const startCol = Math.max(0, Math.floor(cameraX / TILE) - 1);
+  const endCol = Math.min(level[0].length, startCol + Math.ceil(W/TILE) + 2);
+  for (let r = 0; r < level.length; r++) {
+    for (let c = startCol; c < endCol; c++) {
+      const t = level[r][c];
+      const x = c * TILE, y = r * TILE;
+      drawTile(t, x, y);
+    }
+  }
+
+  enemies.forEach(e => {
+    if (!e.alive) return;
+    if (e.x + e.w < cameraX || e.x > cameraX + W) return;
+    ctx.fillStyle = '#8b4513';
+    ctx.fillRect(e.x, e.y, e.w, e.h);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(e.x + 4, e.y + 6, 6, 6);
+    ctx.fillRect(e.x + 18, e.y + 6, 6, 6);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(e.x + 5, e.y + 7, 2, 2);
+    ctx.fillRect(e.x + 19, e.y + 7, 2, 2);
+  });
+
+  if (!player.dead || player.vy < 0) {
+    drawPlayer();
+  }
+
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life / 30;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - cameraX, p.y, p.size, p.size);
+  });
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+}
+
+function drawCloud(x, y) {
+  ctx.beginPath();
+  ctx.arc(x, y, 20, 0, Math.PI*2);
+  ctx.arc(x+25, y-10, 25, 0, Math.PI*2);
+  ctx.arc(x+50, y, 20, 0, Math.PI*2);
+  ctx.fill();
+}
+
+function drawTile(t, x, y) {
+  if (t === T.EMPTY) return;
+  if (t === T.GROUND) {
+    ctx.fillStyle = '#8b5a2b';
+    ctx.fillRect(x, y, TILE, TILE);
+    ctx.fillStyle = '#5a3825';
+    ctx.fillRect(x, y, TILE, 4);
+    ctx.fillStyle = '#a0683a';
+    ctx.fillRect(x+2, y+6, TILE-4, TILE-8);
+  } else if (t === T.BRICK) {
+    ctx.fillStyle = '#c84c0c';
+    ctx.fillRect(x, y, TILE, TILE);
+    ctx.strokeStyle = '#8b3300';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x+1, y+1, TILE-2, TILE-2);
+    ctx.fillStyle = '#a03800';
+    ctx.fillRect(x+2, y+2, TILE-4, 4);
+    ctx.fillRect(x+2, y+TILE/2, TILE-4, 4);
+  } else if (t === T.QBLOCK) {
+    ctx.fillStyle = '#fbd000';
+    ctx.fillRect(x, y, TILE, TILE);
+    ctx.fillStyle = '#c8a000';
+    ctx.fillRect(x+2, y+2, TILE-4, TILE-4);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 20px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('?', x+TILE/2, y+TILE-8);
+  } else if (t === T.PIPE) {
+    ctx.fillStyle = '#00a800';
+    ctx.fillRect(x, y, TILE, TILE);
+    ctx.fillStyle = '#008000';
+    ctx.fillRect(x+4, y, 4, TILE);
+    ctx.fillStyle = '#00c800';
+    ctx.fillRect(x+TILE-8, y, 4, TILE);
+  } else if (t === T.FLAG) {
+    ctx.fillStyle = '#8b5a2b';
+    ctx.fillRect(x+TILE/2-2, y, 4, TILE);
+    ctx.fillStyle = '#00a800';
+    ctx.beginPath();
+    ctx.moveTo(x+TILE/2+2, y);
+    ctx.lineTo(x+TILE/2+2+20, y+10);
+    ctx.lineTo(x+TILE/2+2, y+20);
+    ctx.fill();
+  }
+}
+
+function drawPlayer() {
+  const x = player.x, y = player.y;
+  const h = player.big ? 48 : 32;
+  const w = 24;
+  ctx.fillStyle = player.invincible > 0 && Math.floor(player.invincible/4)%2 ? '#fff' : '#fbd000';
+  ctx.fillRect(x + 4, y, w - 8, 12);
+  ctx.fillStyle = '#e52521';
+  ctx.fillRect(x + 2, y - 4, w - 4, 8);
+  ctx.fillStyle = '#000';
+  const eyeX = player.facing > 0 ? x + w - 8 : x + 4;
+  ctx.fillRect(eyeX, y + 2, 4, 4);
+  ctx.fillStyle = '#0058f8';
+  ctx.fillRect(x + 2, y + 12, w - 4, h - 16);
+  ctx.fillStyle = '#fbd000';
+  ctx.fillRect(x - 2, y + 14, 4, 8);
+  ctx.fillRect(x + w - 2, y + 14, 4, 8);
+  ctx.fillStyle = '#6b3e00';
+  const legOffset = player.onGround && player.animFrame === 1 ? 2 : 0;
+  ctx.fillRect(x + 2, y + h - 8 + legOffset, 8, 8);
+  ctx.fillRect(x + w - 10, y + h - 8 - legOffset, 8, 8);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(x, y + h, 10, 4);
+  ctx.fillRect(x + w - 10, y + h, 10, 4);
+}
+
+function gameLoop() {
+  if (state === 'playing') {
+    updatePlayer();
+    updateEnemies();
+    updateParticles();
+  }
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+// Input
+window.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (e.key === 'r' || e.key === 'R') {
+    if (state === 'gameOver' || state === 'win') initGame();
+  }
+  if (e.key === ' ') e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// Touch buttons
+function bindTouch(btn, onDown, onUp) {
+  btn.addEventListener('touchstart', e => { e.preventDefault(); onDown(); }, {passive:false});
+  btn.addEventListener('touchend', e => { e.preventDefault(); onUp(); }, {passive:false});
+  btn.addEventListener('touchcancel', e => { e.preventDefault(); onUp(); }, {passive:false});
+  btn.addEventListener('mousedown', e => { e.preventDefault(); onDown(); });
+  btn.addEventListener('mouseup', e => { e.preventDefault(); onUp(); });
+  btn.addEventListener('mouseleave', e => { onUp(); });
+}
+bindTouch(document.getElementById('leftBtn'), () => { touchLeft = true; }, () => { touchLeft = false; });
+bindTouch(document.getElementById('rightBtn'), () => { touchRight = true; }, () => { touchRight = false; });
+bindTouch(document.getElementById('jumpBtn'), () => { touchJump = true; }, () => { });
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  if (state === 'title' || state === 'gameOver' || state === 'win') initGame();
+});
+document.getElementById('startBtn').addEventListener('touchend', e => {
+  e.preventDefault();
+  if (state === 'title' || state === 'gameOver' || state === 'win') initGame();
+});
+
+// Fullscreen
+document.getElementById('fsBtn').addEventListener('click', () => {
+  const el = document.documentElement;
+  if (!document.fullscreenElement) {
+    (el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen).call(el);
+  } else {
+    (document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen).call(document);
+  }
+});
+
+// Resize canvas to fit
+function resizeCanvas() {
+  const wrap = document.getElementById('canvasWrap');
+  const rect = wrap.getBoundingClientRect();
+  const aspect = 800/480;
+  let w = rect.width, h = rect.height;
+  if (w/h > aspect) { w = h * aspect; } else { h = w / aspect; }
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+}
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', () => { setTimeout(resizeCanvas, 200); });
+resizeCanvas();
+
+// Init
+buildLevel();
+resetPlayer();
+gameLoop();
+</script>
+</body>
+</html>
