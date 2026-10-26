@@ -62,7 +62,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: rgba(0,0,0,0.75);
+    background: rgba(0,0,0,0.78);
     color: #fff;
     font-size: 22px;
     text-align: center;
@@ -82,7 +82,6 @@
     border-radius: 8px;
     cursor: pointer;
   }
-  /* Touch controls */
   #touchControls {
     position: absolute;
     bottom: 12px;
@@ -136,7 +135,6 @@
     font-size: 20px;
     text-align: center;
   }
-  #rotateHint.show { display: flex; }
   @media (orientation: portrait) {
     #rotateHint { display: flex; }
   }
@@ -150,7 +148,7 @@
   <div id="hud">
     <div><span class="label">MARIO</span> <span id="score">000000</span></div>
     <div><span class="label">COINS</span> x<span id="coins">00</span></div>
-    <div><span class="label">WORLD</span> 1-1</div>
+    <div><span class="label">WORLD</span> <span id="world">1-1</span></div>
     <div><span class="label">TIME</span> <span id="time">400</span></div>
     <div><span class="label">LIVES</span> x<span id="lives">3</span></div>
   </div>
@@ -169,7 +167,7 @@
       <p>手机横屏游玩体验更佳</p>
       <p>方向键/WASD 或触屏按钮移动跳跃</p>
       <p>踩敌人、吃金币、撞问号方块</p>
-      <p>到达旗杆胜利！</p>
+      <p>到达旗杆进入下一关！共 3 关</p>
       <button id="startBtn">开始游戏</button>
     </div>
   </div>
@@ -186,8 +184,10 @@ let W = canvas.width, H = canvas.height;
 const TILE = 32;
 const GRAVITY = 0.6;
 const JUMP_FORCE = -13;
-const MOVE_SPEED = 4;
+const MOVE_SPEED = 4.5;
 const MAX_FALL = 16;
+
+const TOTAL_LEVELS = 3;
 
 let state = 'title';
 let score = 0, coins = 0, lives = 3, timeLeft = 400;
@@ -200,36 +200,74 @@ let enemies = [];
 let particles = [];
 let level = [];
 let levelWidth = 0;
+let currentLevel = 0;
+let levelMaps = [];
 
 const T = { EMPTY:0, GROUND:1, BRICK:2, QBLOCK:3, PIPE:4, FLAG:5, COIN:6 };
 
-const LEVEL_MAP = [
-  "                                                                                                                                                                                                                      ",
-  "                                                                                                                                                                                                                      ",
-  "                                                                                                                                                                                                                      ",
-  "                                                                                                                                                                                                                      ",
-  "                                                                                                                                                                                                                      ",
-  "                                                                                                                                                                                                                      ",
-  "                                                                                                                                                                                                                      ",
-  "                                                                                                                                                                                                                      ",
-  "                                                                                                                                                                                                                      ",
-  "                                                                                                                                                                                                                      ",
-  "   ?   ?       ?       ?   ?   ?   ?       ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ?   ",
-  "   #   #       #       #   #   #   #       #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   ",
-  "   #   #       #       #   #   #   #       #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   #   ",
-  "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
-  "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
-];
+// Level generator
+function generateLevel(lvl) {
+  const W = 260 + lvl * 60;
+  const rows = 15;
+  const grid = Array.from({length: rows}, () => Array(W).fill(' '));
+  // ground with gaps
+  const gaps = [];
+  let x = 50;
+  while (x < W - 20) {
+    const gapLen = 4 + (lvl) + Math.floor(Math.random()*3);
+    gaps.push([x, x + gapLen]);
+    x += 40 + Math.floor(Math.random()*30);
+  }
+  function isGap(c) { return gaps.some(([a,b]) => c >= a && c < b); }
+  for (let c = 0; c < W; c++) {
+    if (isGap(c)) continue;
+    grid[rows-1][c] = 'G';
+    grid[rows-2][c] = 'G';
+  }
+  // question blocks
+  for (let c = 8; c < W - 12; c += 6 + Math.floor(Math.random()*3)) {
+    if (isGap(c) || isGap(c+1)) continue;
+    if (Math.random() < 0.55) grid[10][c] = '?';
+  }
+  // brick platforms (elevated)
+  for (let c = 15; c < W - 15; c += 12 + Math.floor(Math.random()*8)) {
+    if (isGap(c)) continue;
+    const platLen = 3 + Math.floor(Math.random()*4);
+    const platRow = 11 - Math.floor(Math.random()*3);
+    for (let k = 0; k < platLen; k++) {
+      if (c + k < W) grid[platRow][c+k] = '#';
+    }
+  }
+  // pipes
+  for (let c = 25; c < W - 20; c += 35 + Math.floor(Math.random()*20)) {
+    if (isGap(c) || isGap(c+1)) continue;
+    const h = 2 + Math.floor(Math.random()*2) + (lvl > 1 ? 1 : 0);
+    for (let hh = 0; hh < h; hh++) {
+      for (let cc = 0; cc < 2; cc++) {
+        if (grid[rows-3-hh]) grid[rows-3-hh][c+cc] = 'P';
+      }
+    }
+  }
+  // flag at end
+  for (let r = 8; r < rows - 2; r++) grid[r][W - 5] = 'F';
+  return grid.map(r => r.join(''));
+}
+
+function buildLevels() {
+  levelMaps = [];
+  for (let i = 0; i < TOTAL_LEVELS; i++) levelMaps.push(generateLevel(i));
+}
 
 function buildLevel() {
+  const map = levelMaps[currentLevel];
   level = [];
-  const rows = LEVEL_MAP.length;
-  const cols = LEVEL_MAP[0].length;
+  const rows = map.length;
+  const cols = map[0].length;
   levelWidth = cols * TILE;
   for (let r = 0; r < rows; r++) {
     const row = [];
     for (let c = 0; c < cols; c++) {
-      const ch = LEVEL_MAP[r][c];
+      const ch = map[r][c];
       let t = T.EMPTY;
       if (ch === 'G') t = T.GROUND;
       else if (ch === '#') t = T.BRICK;
@@ -240,22 +278,22 @@ function buildLevel() {
     }
     level.push(row);
   }
-  addPipe(30, 10, 3);
-  addPipe(60, 10, 4);
-  addPipe(90, 10, 3);
-  const flagCol = cols - 5;
-  for (let r = 8; r < rows - 2; r++) level[r][flagCol] = T.FLAG;
+  // enemies
   enemies = [];
-  const enemyPositions = [15, 25, 40, 55, 70, 85, 100, 120, 140, 160, 180];
-  enemyPositions.forEach(c => {
-    enemies.push({ x: c*TILE, y: (rows-4)*TILE, vx: -1, vy: 0, w: 28, h: 28, alive: true, type: 'goomba' });
-  });
-}
-
-function addPipe(col, startRow, height) {
-  for (let h = 0; h < height; h++) {
-    for (let c = 0; c < 2; c++) {
-      if (level[startRow - h]) level[startRow - h][col + c] = T.PIPE;
+  const rows2 = map.length;
+  const cols2 = map[0].length;
+  // place enemies on ground positions
+  for (let c = 12; c < cols2 - 15; c += 10 + Math.floor(Math.random()*8)) {
+    // find ground row
+    let gr = -1;
+    for (let r = rows2 - 1; r >= 0; r--) {
+      if (level[r][c] === T.GROUND) { gr = r; break; }
+    }
+    if (gr >= 0 && level[gr-1] && level[gr-1][c] === T.EMPTY) {
+      const cnt = 1 + (Math.random() < 0.3 + currentLevel*0.15 ? 1 : 0);
+      for (let k = 0; k < cnt; k++) {
+        enemies.push({ x: (c+k*3)*TILE, y: (gr-1)*TILE, vx: -1 - currentLevel*0.3, vy: 0, w: 28, h: 28, alive: true });
+      }
     }
   }
 }
@@ -271,12 +309,21 @@ function resetPlayer() {
 }
 
 function initGame() {
-  score = 0; coins = 0; lives = 3; timeLeft = 400;
+  score = 0; coins = 0; lives = 3; currentLevel = 0;
+  buildLevels();
+  loadLevel(0);
+}
+
+function loadLevel(idx) {
+  currentLevel = idx;
+  timeLeft = 400 + idx * 50;
   cameraX = 0;
   particles = [];
   buildLevel();
   resetPlayer();
   updateHUD();
+  document.getElementById('world').textContent = `1-${idx+1}`;
+  document.getElementById('time').textContent = String(timeLeft).padStart(3,'0');
   if (timeTimer) clearInterval(timeTimer);
   timeTimer = setInterval(() => {
     if (state === 'playing') {
@@ -314,21 +361,33 @@ function playerDie() {
   setTimeout(() => {
     if (lives <= 0) {
       state = 'gameOver';
-      showOverlay('GAME OVER', '按 R 或点击重新开始');
+      showOverlay('GAME OVER', `最终得分: ${score}<br>按 R 或点击重新开始`);
     } else {
       resetPlayer();
       cameraX = 0;
-      timeLeft = 400;
-      document.getElementById('time').textContent = '400';
+      timeLeft = 400 + currentLevel * 50;
+      document.getElementById('time').textContent = String(timeLeft).padStart(3,'0');
     }
   }, 1500);
 }
 
-function showOverlay(title, msg) {
+function showOverlay(title, msg, btnText) {
   const o = document.getElementById('overlay');
   o.classList.remove('hidden');
-  o.innerHTML = `<h1>${title}</h1><p>${msg}</p><button id="startBtn">${state==='gameOver'?'重新开始':'开始游戏'}</button>`;
-  document.getElementById('startBtn').onclick = () => { if (state==='gameOver'||state==='title'||state==='win') initGame(); };
+  o.innerHTML = `<h1>${title}</h1><p>${msg}</p><button id="startBtn">${btnText || '继续'}</button>`;
+  document.getElementById('startBtn').onclick = () => {
+    if (state === 'title' || state === 'gameOver') initGame();
+    else if (state === 'levelComplete') {
+      if (currentLevel + 1 < TOTAL_LEVELS) loadLevel(currentLevel + 1);
+      else { state = 'win'; showFinalWin(); }
+    } else if (state === 'win') initGame();
+  };
+}
+
+function showFinalWin() {
+  state = 'win';
+  const total = score;
+  showOverlay('🏆 恭喜通关！🏆', `总得分: ${total}<br>金币: ${coins}<br>3 关全部完成！`, '再玩一次');
 }
 
 function spawnParticles(x, y, color, count) {
@@ -380,11 +439,17 @@ function updatePlayer() {
   const pc = Math.floor((player.x + player.w/2) / TILE);
   const pr = Math.floor((player.y + player.h/2) / TILE);
   if (tileAt(pc, pr) === T.FLAG) {
-    state = 'win';
-    score += timeLeft * 10;
+    // level complete
+    state = 'levelComplete';
+    score += timeLeft * 10 + 1000;
     updateHUD();
-    showOverlay('🎉 YOU WIN! 🎉', `得分: ${score}  金币: ${coins}`);
     if (timeTimer) clearInterval(timeTimer);
+    const isLast = currentLevel + 1 >= TOTAL_LEVELS;
+    showOverlay(
+      isLast ? '🎉 最后一关完成！' : `🎉 第 ${currentLevel+1} 关完成！`,
+      `得分: ${score}<br>金币: ${coins}<br>剩余时间: ${timeLeft}`,
+      isLast ? '查看结果' : '下一关'
+    );
   }
 
   if (player.invincible > 0) player.invincible--;
@@ -635,13 +700,12 @@ function gameLoop() {
 window.addEventListener('keydown', e => {
   keys[e.key] = true;
   if (e.key === 'r' || e.key === 'R') {
-    if (state === 'gameOver' || state === 'win') initGame();
+    if (state === 'gameOver' || state === 'win' || state === 'title') initGame();
   }
   if (e.key === ' ') e.preventDefault();
 });
 window.addEventListener('keyup', e => { keys[e.key] = false; });
 
-// Touch buttons
 function bindTouch(btn, onDown, onUp) {
   btn.addEventListener('touchstart', e => { e.preventDefault(); onDown(); }, {passive:false});
   btn.addEventListener('touchend', e => { e.preventDefault(); onUp(); }, {passive:false});
@@ -662,7 +726,6 @@ document.getElementById('startBtn').addEventListener('touchend', e => {
   if (state === 'title' || state === 'gameOver' || state === 'win') initGame();
 });
 
-// Fullscreen
 document.getElementById('fsBtn').addEventListener('click', () => {
   const el = document.documentElement;
   if (!document.fullscreenElement) {
@@ -672,7 +735,6 @@ document.getElementById('fsBtn').addEventListener('click', () => {
   }
 });
 
-// Resize canvas to fit
 function resizeCanvas() {
   const wrap = document.getElementById('canvasWrap');
   const rect = wrap.getBoundingClientRect();
@@ -686,8 +748,7 @@ window.addEventListener('resize', resizeCanvas);
 window.addEventListener('orientationchange', () => { setTimeout(resizeCanvas, 200); });
 resizeCanvas();
 
-// Init
-buildLevel();
+buildLevels();
 resetPlayer();
 gameLoop();
 </script>
