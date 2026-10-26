@@ -184,7 +184,7 @@ let W = canvas.width, H = canvas.height;
 const TILE = 32;
 const GRAVITY = 0.6;
 const JUMP_FORCE = -13;
-const MOVE_SPEED = 4.5;
+const MOVE_SPEED = 5;
 const MAX_FALL = 16;
 
 const TOTAL_LEVELS = 3;
@@ -210,11 +210,11 @@ function generateLevel(lvl) {
   const W = 260 + lvl * 60;
   const rows = 15;
   const grid = Array.from({length: rows}, () => Array(W).fill(' '));
-  // ground with gaps
+  // ground with gaps (keep gaps jumpable: max 4 tiles)
   const gaps = [];
   let x = 50;
   while (x < W - 20) {
-    const gapLen = 4 + (lvl) + Math.floor(Math.random()*3);
+    const gapLen = 3 + Math.floor(Math.random()*2);
     gaps.push([x, x + gapLen]);
     x += 40 + Math.floor(Math.random()*30);
   }
@@ -283,16 +283,18 @@ function buildLevel() {
   const rows2 = map.length;
   const cols2 = map[0].length;
   // place enemies on ground positions
-  for (let c = 12; c < cols2 - 15; c += 10 + Math.floor(Math.random()*8)) {
-    // find ground row
+  for (let c = 12; c < cols2 - 15; c += 8 + Math.floor(Math.random()*6)) {
+    // find the TOP-most ground row at this column (first GROUND from above)
     let gr = -1;
-    for (let r = rows2 - 1; r >= 0; r--) {
+    for (let r = 0; r < rows2; r++) {
       if (level[r][c] === T.GROUND) { gr = r; break; }
     }
-    if (gr >= 0 && level[gr-1] && level[gr-1][c] === T.EMPTY) {
+    // spawn only if the tile directly above the ground is empty
+    if (gr > 0 && level[gr-1] && level[gr-1][c] === T.EMPTY && level[gr-1][c+1] === T.EMPTY) {
       const cnt = 1 + (Math.random() < 0.3 + currentLevel*0.15 ? 1 : 0);
       for (let k = 0; k < cnt; k++) {
-        enemies.push({ x: (c+k*3)*TILE, y: (gr-1)*TILE, vx: -1 - currentLevel*0.3, vy: 0, w: 28, h: 28, alive: true });
+        if (level[gr-1][c + k*2] !== T.EMPTY) break;
+        enemies.push({ x: (c + k*2)*TILE, y: (gr-1)*TILE, vx: -1 - currentLevel*0.3, vy: 0, w: 28, h: 28, alive: true });
       }
     }
   }
@@ -462,7 +464,11 @@ function resolveCollisions(axis) {
   const left = Math.floor(player.x / TILE);
   const right = Math.floor((player.x + player.w - 1) / TILE);
   const top = Math.floor(player.y / TILE);
-  const bottom = Math.floor((player.y + player.h - 1) / TILE);
+  // For vertical collision include the exact bottom edge so landing is stable;
+  // for horizontal keep the -1 to avoid false wall hits while standing.
+  const bottom = axis === 'y'
+    ? Math.floor((player.y + player.h) / TILE)
+    : Math.floor((player.y + player.h - 1) / TILE);
 
   for (let r = top; r <= bottom; r++) {
     for (let c = left; c <= right; c++) {
@@ -560,6 +566,9 @@ function updateParticles() {
 function draw() {
   ctx.fillStyle = '#5c94fc';
   ctx.fillRect(0, 0, W, H);
+
+  // Guard: level not ready yet
+  if (!level || level.length === 0 || !level[0]) return;
 
   ctx.fillStyle = 'rgba(255,255,255,0.6)';
   drawCloud(100 - cameraX*0.3, 60);
@@ -749,6 +758,7 @@ window.addEventListener('orientationchange', () => { setTimeout(resizeCanvas, 20
 resizeCanvas();
 
 buildLevels();
+buildLevel();
 resetPlayer();
 gameLoop();
 </script>
