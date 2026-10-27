@@ -84,21 +84,23 @@
   }
   #touchControls {
     position: absolute;
-    bottom: 12px;
-    left: 0; right: 0;
+    bottom: max(22px, env(safe-area-inset-bottom));
+    left: max(24px, env(safe-area-inset-left));
+    right: max(24px, env(safe-area-inset-right));
     display: flex;
     justify-content: space-between;
-    padding: 0 16px;
+    align-items: flex-end;
     z-index: 15;
     pointer-events: none;
   }
   .tbtn {
-    width: 64px; height: 64px;
+    width: clamp(76px, 19vh, 116px);
+    height: clamp(76px, 19vh, 116px);
     border-radius: 50%;
-    background: rgba(255,255,255,0.25);
-    border: 2px solid rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.28);
+    border: 3px solid rgba(255,255,255,0.65);
     color: #fff;
-    font-size: 28px;
+    font-size: clamp(30px, 6.5vh, 46px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -106,22 +108,32 @@
     user-select: none;
     -webkit-user-select: none;
     touch-action: none;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.28);
   }
-  .tbtn:active { background: rgba(255,255,255,0.45); }
-  #jumpBtn { width: 80px; height: 80px; font-size: 16px; font-weight: bold; }
+  .tbtn:active { background: rgba(255,255,255,0.5); transform: scale(0.95); }
+  #jumpBtn {
+    width: clamp(92px, 23vh, 140px);
+    height: clamp(92px, 23vh, 140px);
+    font-size: clamp(19px, 4.5vh, 28px);
+    font-weight: bold;
+    background: rgba(229,37,33,0.55);
+    border-color: rgba(255,255,255,0.85);
+  }
+  #jumpBtn:active { background: rgba(229,37,33,0.8); }
   #fsBtn {
     position: absolute;
-    top: 8px;
-    right: 8px;
+    top: max(10px, env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
     z-index: 16;
-    padding: 6px 12px;
+    padding: 8px 16px;
     background: rgba(0,0,0,0.5);
     color: #fff;
     border: 1px solid #fff;
-    border-radius: 6px;
-    font-size: 12px;
+    border-radius: 8px;
+    font-size: clamp(12px, 2.4vh, 15px);
     cursor: pointer;
   }
+  #fsBtn:active { background: rgba(0,0,0,0.75); }
   #rotateHint {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -156,7 +168,7 @@
     <canvas id="game" width="800" height="480"></canvas>
     <button id="fsBtn">全屏</button>
     <div id="touchControls">
-      <div style="display:flex;gap:8px;">
+      <div style="display:flex;gap:clamp(10px,2.2vh,18px);">
         <div class="tbtn" id="leftBtn">◀</div>
         <div class="tbtn" id="rightBtn">▶</div>
       </div>
